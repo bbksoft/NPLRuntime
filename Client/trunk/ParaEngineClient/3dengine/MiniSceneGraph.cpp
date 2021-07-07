@@ -680,6 +680,11 @@ void ParaEngine::CMiniSceneGraph::Draw(float fDeltaTime)
 
 }
 
+void ParaEngine::CMiniSceneGraph::DestroyChildren()
+{
+	CRenderTarget::DestroyChildren();
+	m_name_map.clear();
+}
 
 void ParaEngine::CMiniSceneGraph::CameraZoom( float fAmount )
 {
@@ -1141,7 +1146,7 @@ bool ParaEngine::CMiniSceneGraph::PickObject( int nScreenX, int nScreenY, CBaseO
 		GetCamera()->GetMouseRay(vPickRayOrig, vPickRayDir, ptCursor,m_nTextureWidth, m_nTextureHeight, &matWorld);
 		return PickObject(CShapeRay(vPickRayOrig+GetRenderOrigin(), vPickRayDir), pTouchedObject, fMaxDistance,pFnctFilter);
 	}
-	else
+	else if(CGlobals::GetViewportManager())
 	{
 		int x = ptCursor.x;
 		int y = ptCursor.y;
@@ -1152,6 +1157,7 @@ bool ParaEngine::CMiniSceneGraph::PickObject( int nScreenX, int nScreenY, CBaseO
 		CGlobals::GetScene()->GetCurrentCamera()->GetMouseRay(vPickRayOrig, vPickRayDir, ptCursor,nWidth, nHeight, &matWorld);
 		return PickObject(CShapeRay(vPickRayOrig+GetRenderOrigin(), vPickRayDir), pTouchedObject, fMaxDistance,pFnctFilter);
 	}
+	return false;
 }
 
 bool ParaEngine::CMiniSceneGraph::PickObject( const CShapeRay& ray, CBaseObject** pTouchedObject, float fMaxDistance/*=0*/, OBJECT_FILTER_CALLBACK pFnctFilter/*=NULL*/ )

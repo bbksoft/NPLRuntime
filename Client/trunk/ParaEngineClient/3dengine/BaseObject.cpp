@@ -35,7 +35,7 @@ int ParaEngine::CBaseObject::g_nObjectSelectionEffect = ParaEngine::RenderSelect
 // Class CBaseObject
 //-------------------------------------------------------------------
 CBaseObject::CBaseObject()
-	:m_tileContainer(NULL), m_nTechniqueHandle(-1), m_objType(_undefined), m_bGeometryDirty(false),
+	:m_tileContainer(NULL), m_nTechniqueHandle(-1), m_objType(_undefined), m_bGeometryDirty(false), m_bEnableLOD(true),
 	m_dwAttribute(0), m_pEffectParamBlock(NULL), m_nFrameNumber(0), m_nID(0), m_nSelectGroupIndex(-1), m_nRenderImportance(0), m_fRenderDistance(0.f), m_fRenderOrder(0.f)
 {
 }
@@ -204,7 +204,7 @@ std::string CBaseObject::ToString(DWORD nMethod)
 	string sScript;
 	sScript = "-- ";
 	sScript.append(m_sIdentifer);
-	sScript.append("\r\n");
+	sScript.append("\n");
 	return sScript;
 }
 
@@ -216,10 +216,17 @@ void CBaseObject::AddChild(CBaseObject * pObject)
 {
 	if(pObject)
 	{
-		if (pObject->GetParent() != NULL)
-			pObject->GetParent()->RemoveChild(pObject);
+		CBaseObject* pParent = pObject->GetParent();
+		if (pParent != NULL) {
+			pObject->addref();
+			pParent->RemoveChild(pObject);
+		}
 		pObject->SetParent(this);
 		m_children.push_back(pObject);
+
+		if (pParent != NULL) {
+			pObject->delref();
+		}
 	}
 }
 
@@ -889,6 +896,16 @@ void ParaEngine::CBaseObject::SetGeometryDirty(bool bDirty /*= true*/)
 	m_bGeometryDirty = bDirty;
 }
 
+bool ParaEngine::CBaseObject::IsLODEnabled() const
+{
+	return m_bEnableLOD;
+}
+
+void ParaEngine::CBaseObject::EnableLOD(bool val)
+{
+	m_bEnableLOD = val;
+}
+
 IAttributeFields* ParaEngine::CBaseObject::GetChildAttributeObject(int nRowIndex, int nColumnIndex)
 {
 	if (nRowIndex < (int)m_children.size())
@@ -1003,6 +1020,52 @@ void ParaEngine::CBaseObject::GetLocalTransform(Matrix4* localTransform)
 	{
 		localTransform->identity();
 	}
+}
+
+int ParaEngine::CBaseObject::GetMeshTriangleList(vector<Vector3>& output, int nOption)
+{
+	output.clear();
+	auto pAsset = GetPrimaryAsset();
+	if (pAsset && pAsset->IsValid())
+	{
+		pAsset->LoadAsset();
+		if (pAsset->GetType() == AssetEntity::parax)
+		{
+			ParaXEntity* pParaXEntity = (ParaXEntity*)pAsset;
+			CParaXModel* pModel = pParaXEntity->GetModel();
+			if (pModel)
+			{
+				int nPass = (int)pModel->passes.size();
+				auto origVertices = pModel->m_origVertices;
+				auto indices = pModel->m_indices;
+				for (auto& p : pModel->passes)
+				{
+					if (p.indexCount > 0)
+					{
+						int nIndexOffset = p.GetStartIndex();
+						int numFaces = p.indexCount / 3;
+						if(output.capacity() < (output.size() + p.indexCount))
+							output.reserve(output.size() + p.indexCount);
+						for (int i= 0; i< numFaces; ++i)
+						{
+							int nVB = 3 * i;
+							for (int k = 0; k < 3; ++k)
+							{
+								auto a = indices[nIndexOffset + nVB + k];
+								auto vert = origVertices[a];
+								output.push_back(vert.pos);
+							}
+						}
+					}
+				}
+			}
+		}
+		else if (pAsset->GetType() == AssetEntity::mesh)
+		{
+
+		}
+	}
+	return (int)(output.size() / 3);
 }
 
 void ParaEngine::CBaseObject::UpdateGeometry()
@@ -1130,6 +1193,7 @@ int CBaseObject::InstallFields(CAttributeClass* pClass, bool bOverride)
 	pClass->AddField("DestroyChildren", FieldType_void, (void*)DestroyChildren_s, (void*)0, NULL, "", bOverride);
 	pClass->AddField("RenderWorldMatrix", FieldType_Matrix4, (void*)0, (void*)GetRenderMatrix_s, NULL, "", bOverride);
 	pClass->AddField("LocalTransform", FieldType_Matrix4, (void*)SetLocalTransform_s, (void*)GetLocalTransform_s, NULL, "", bOverride);
+	pClass->AddField("IsLodEnabled", FieldType_Bool, (void*)EnableLOD_s, (void*)IsLODEnabled_s, NULL, "", bOverride);
 	return S_OK;
 }
 

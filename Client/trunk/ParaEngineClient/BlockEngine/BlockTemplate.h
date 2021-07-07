@@ -41,6 +41,10 @@ namespace ParaEngine
 			batt_framemove		= 0x0020000,	// whether the block has a frame move function.
 			batt_onload		= 0x0040000,	// whether the block has a OnBlockLoaded function.
 			batt_color_data		= 0x0080000,	// whether the block contains color in its block data.
+
+			batt_invisible = 0x0100000,// whether the block is invisible.
+			
+			batt_tiling			= 0x0200000,
 		};
 
 		BlockTemplate(uint16_t id,uint32_t attFlag, uint16_t category_id);
@@ -68,6 +72,12 @@ namespace ParaEngine
 		inline bool IsMatchAttribute(uint32_t attFlags) const
 		{
 			return ((m_attFlag & attFlags) > 0);
+		}
+
+		/** all attributes as specified in dwMask must match the value of attFlags*/
+		inline bool IsMatchAttributes(uint32_t dwMask, uint32_t attFlags) const
+		{
+			return ((m_attFlag & dwMask) == attFlags);
 		}
 
 		/** if match all of the given attributes */
@@ -243,6 +253,9 @@ namespace ParaEngine
 		void SetMapColor(Color val);
 		DWORD GetBlockColor(int32_t blockData);
 		DWORD GetDiffuseColor(int32_t blockData);
+		void setUnderWaterColor(const Color & val);
+		const Color & getUnderWaterColor()const;
+		int getTileSize()const { return mTileSize; }
 		private:
 			/** unique id */
 			uint16_t m_id;
@@ -281,6 +294,9 @@ namespace ParaEngine
 			IBlockModelProvider* m_pBlockModelFilter;
 			/** color as shown on the map*/
 			Color m_dwMapColor;
+			Color m_UnderWaterColor;
+
+			int mTileSize = 1;
 			
 			friend class IBlockModelProvider;
 		};

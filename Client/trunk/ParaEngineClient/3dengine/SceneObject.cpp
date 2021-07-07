@@ -21,6 +21,8 @@
 #include "DropShadowRenderer.h"
 #include "OcclusionQueryBank.h"
 #include "WaveEffect.h"
+#elif defined(USE_OPENGL_RENDERER)
+#include "ShadowMap.h"
 #endif
 #include "PaintEngine/Painter.h"
 #include "ContainerObject.h"
@@ -65,7 +67,6 @@
 #include "SceneObject.h"
 #include "SunLight.h"
 #include "BufferPicking.h"
-
 #include "memdebug.h"
 
 /** @def shadow radius around the eye, larger than which shadows will not be considered.  */
@@ -1822,7 +1823,7 @@ int CSceneObject::PrepareRender(CBaseCamera* pCamera, SceneState* pSceneState)
 	//
 	//////////////////////////////////////////////////////////////////////////
 	sceneState.CleanupSceneState();
-	
+	sceneState.EnableGlobalLOD(IsLODEnabled());
 	sceneState.vEye = pCamera->GetEyePosition();
 	sceneState.vLookAt = pCamera->GetLookAtPosition();
 	
@@ -2075,6 +2076,7 @@ HRESULT CSceneObject::AdvanceScene(double dTimeDelta, int nPipelineOrder)
 
 	globalTime =  (int)(CGlobals::GetGameTime()*1000);
 	SceneState& sceneState = *(m_sceneState.get());
+	
 	sceneState.SetCurrentRenderPipeline(nPipelineOrder);
 	RenderDevicePtr pd3dDevice = sceneState.m_pd3dDevice;
 
@@ -2342,10 +2344,10 @@ HRESULT CSceneObject::AdvanceScene(double dTimeDelta, int nPipelineOrder)
 		RenderSelection(RENDER_MISSILES);
 	}
 
-	m_pBlockWorldClient->Render(BlockRenderPass_ReflectedWater);
 	//////////////////////////////////////////////////////////////////////////
 	// deferred shading so far. 
 	m_pBlockWorldClient->DoPostRenderingProcessing(BlockRenderPass_Opaque);
+	m_pBlockWorldClient->Render(BlockRenderPass_ReflectedWater);
 
 	// draw transparent particles
 	m_pBatchedElementDraw->DrawBatchedParticles(true);
@@ -2954,6 +2956,10 @@ void CSceneObject::RegenerateRenderOrigin(const Vector3& vPos)
 	m_vRenderOrigin.x = (float)((int)vPos.x);
 	m_vRenderOrigin.y = (float)((int)vPos.y);
 	m_vRenderOrigin.z = (float)((int)vPos.z);
+
+	//m_vRenderOrigin.x = round(vPos.x);
+	//m_vRenderOrigin.y = round(vPos.y);
+	//m_vRenderOrigin.z = round(vPos.z);
 }
 CMissileObject* CSceneObject::NewMissile()
 {
@@ -2989,6 +2995,7 @@ bool CSceneObject::HandleUserInput()
 	MouseEvent mouse_up_event(0,0,0,-1);
 	MouseEvent mouse_move_event(0,0,0,-1);
 	MouseEvent mouse_click_event(0,0,0, -1);
+	MouseEvent mouse_wheel_event(0, 0, 0, -1);
 	KeyEvent key_event(0,0);
 
 	CDirectMouse* pMouse=CGlobals::GetGUI()->m_pMouse;
@@ -3057,6 +3064,16 @@ bool CSceneObject::HandleUserInput()
 							mouse_click_event.m_nEventType = EVENT_MOUSE;
 						}
 					}
+				}
+				else if ((mouse_wheel_event.m_nEventType == -1) && m_event->IsMapTo(pMsg->message, EM_MOUSE_WHEEL))
+				{
+					mouse_wheel_event.m_MouseState = pMsg->message;
+
+					// please note: mouse move is delta value. 
+					mouse_wheel_event.m_x = (int)pMsg->lParam / 120;
+					mouse_wheel_event.m_y = 0;
+
+					mouse_wheel_event.m_nEventType = EVENT_MOUSE_WHEEL;
 				}
 				
 			}
@@ -3130,6 +3147,8 @@ bool CSceneObject::HandleUserInput()
 	// call mouse click event handlers
 	if(mouse_click_event.m_nEventType>=0) 
 		CGlobals::GetEventsCenter()->FireEvent(mouse_click_event);
+	if (mouse_wheel_event.m_nEventType >= 0)
+		CGlobals::GetEventsCenter()->FireEvent(mouse_wheel_event);
 	//if(bHasKeyEvent)
 	//{ 
 	//	// key handlers
@@ -3688,7 +3707,7 @@ void CSceneObject::SetCurrentPlayer(CBipedObject* pPlayer)
 }
 void CSceneObject::SetShadowMapTexelSizeLevel(int nLevel)
 {
-#ifdef USE_DIRECTX_RENDERER
+#if defined(USE_DIRECTX_RENDERER)||defined(USE_OPENGL_RENDERER)
 	if(CGlobals::GetRenderDevice())
 	{
 		CShadowMap* pShadowMap = CGlobals::GetEffectManager()->GetShadowMap();
@@ -3706,7 +3725,7 @@ void CSceneObject::SetShadowMapTexelSizeLevel(int nLevel)
 
 void CSceneObject::SetShadowMapTexelSize(int nWidth, int nHeight)
 {
-#ifdef USE_DIRECTX_RENDERER
+#if defined(USE_DIRECTX_RENDERER)||defined(USE_OPENGL_RENDERER)
 	CShadowMap* pShadowMap = CGlobals::GetEffectManager()->GetShadowMap();
 	if(pShadowMap!=0) 
 	{
@@ -3719,7 +3738,7 @@ void CSceneObject::SetShadowMapTexelSize(int nWidth, int nHeight)
 void CSceneObject::SetShadow(bool bRenderShadow)
 {
 	m_bRenderMeshShadow = bRenderShadow;
-#ifdef USE_DIRECTX_RENDERER
+#if defined(USE_DIRECTX_RENDERER)||defined(USE_OPENGL_RENDERER)
 	if(bRenderShadow)
 	{
 		// never allow shadow rendering, if the shader version is below 20. 
@@ -3748,7 +3767,7 @@ bool CSceneObject::IsShadowMapEnabled()
 }
 void CSceneObject::RenderShadowMap()
 {
-#ifdef USE_DIRECTX_RENDERER
+#if defined(USE_DIRECTX_RENDERER)||defined(USE_OPENGL_RENDERER)
 	// render a blank image even if sceneState.listShadowCasters.empty() 
 	
 	SceneState& sceneState = *(m_sceneState.get());
@@ -4346,7 +4365,8 @@ int FilterScreenObjectToList(T& renderlist, list<CBaseObject*>& output, CPortalF
 
 int CSceneObject::GetObjectsByScreenRect( list<CBaseObject*>& output, const RECT& rect, OBJECT_FILTER_CALLBACK pFnctFilter/*=NULL*/, float fMaxDistance)
 {
-	if(rect.top >= rect.bottom || rect.left >= rect.right)
+	auto pViewportManager = CGlobals::GetViewportManager();
+	if(rect.top >= rect.bottom || rect.left >= rect.right || pViewportManager==0)
 	{
 		return 0;
 	}
@@ -4356,8 +4376,7 @@ int CSceneObject::GetObjectsByScreenRect( list<CBaseObject*>& output, const RECT
 	static CPortalFrustum g_frustum;
 	CPortalFrustum* pFrustum = &g_frustum;
 	
-	Matrix4 matWorld;
-	matWorld = Matrix4::IDENTITY;
+	const Matrix4& matWorld = Matrix4::IDENTITY;
 
 	POINT ptCursor[5];
 	Vector3 vPickRayOrig;
@@ -4366,35 +4385,35 @@ int CSceneObject::GetObjectsByScreenRect( list<CBaseObject*>& output, const RECT
 	int x = rect.left;
 	int y = rect.top;
 	int nWidth, nHeight;
-	CGlobals::GetViewportManager()->GetPointOnViewport(x, y, &nWidth, &nHeight);
+	pViewportManager->GetPointOnViewport(x, y, &nWidth, &nHeight);
 	ptCursor[0].x = x;
 	ptCursor[0].y = y;
 	pCamera->GetMouseRay(vPickRayOrig, vPickRayDir[0], ptCursor[0], nWidth, nHeight, &matWorld);
 
 	x = rect.right;
 	y = rect.top;
-	CGlobals::GetViewportManager()->GetPointOnViewport(x, y, &nWidth, &nHeight);
+	pViewportManager->GetPointOnViewport(x, y, &nWidth, &nHeight);
 	ptCursor[1].x = x;
 	ptCursor[1].y = y;
 	pCamera->GetMouseRay(vPickRayOrig, vPickRayDir[1], ptCursor[1], nWidth, nHeight, &matWorld);
 
 	x = rect.right;
 	y = rect.bottom;
-	CGlobals::GetViewportManager()->GetPointOnViewport(x, y, &nWidth, &nHeight);
+	pViewportManager->GetPointOnViewport(x, y, &nWidth, &nHeight);
 	ptCursor[2].x = x;
 	ptCursor[2].y = y;
 	pCamera->GetMouseRay(vPickRayOrig, vPickRayDir[2], ptCursor[2], nWidth, nHeight, &matWorld);
 
 	x = rect.left;
 	y = rect.bottom;
-	CGlobals::GetViewportManager()->GetPointOnViewport(x, y, &nWidth, &nHeight);
+	pViewportManager->GetPointOnViewport(x, y, &nWidth, &nHeight);
 	ptCursor[3].x = x;
 	ptCursor[3].y = y;
 	pCamera->GetMouseRay(vPickRayOrig, vPickRayDir[3], ptCursor[3], nWidth, nHeight, &matWorld);
 
 	x = 0;
 	y = 0;
-	CGlobals::GetViewportManager()->GetPointOnViewport(x, y, &nWidth, &nHeight);
+	pViewportManager->GetPointOnViewport(x, y, &nWidth, &nHeight);
 	ptCursor[4].x = x;
 	ptCursor[4].y = y;
 	pCamera->GetMouseRay(vPickRayOrig, vPickRayDir[4], ptCursor[4], nWidth, nHeight, &matWorld);
@@ -4403,24 +4422,26 @@ int CSceneObject::GetObjectsByScreenRect( list<CBaseObject*>& output, const RECT
 	for (int i=0;i<4;++i)
 	{
 		Vector3 vNormal;
-		vNormal = vPickRayDir[(i+1)%4].crossProduct(vPickRayDir[i]);
-		ParaVec3Normalize(&vNormal, &vNormal);
-		Plane plane(vPickRayOrig, vNormal);
+		auto nextIndex = (i + 1) % 4;
+		vNormal = vPickRayDir[nextIndex].crossProduct(vPickRayDir[i]);
+		vNormal.normalise();
+		Plane plane(vNormal, vPickRayOrig);
 		pFrustum->AddCullingPlane(plane);
 	}
 	// add the near and far plane at index 4 and 5, this is tricky, since we will use CanSeeObject_CompleteCull for testing
 	{
-		Vector3 vNormal = vPickRayDir[4];
-		ParaVec3Normalize(&vNormal, &vNormal);
+		Vector3& vNormal = vPickRayDir[4];
+		vNormal.normalise();
 
 		{
 			// near plane
-			Plane plane(vPickRayOrig+pCamera->GetNearPlane()*vNormal, vNormal);
+			Plane plane(vNormal, vPickRayOrig + (pCamera->GetNearPlane() * vNormal));
 			pFrustum->AddCullingPlane(plane, false);
 		}
 		{
 			// far plane
-			Plane plane(vPickRayOrig + ((fMaxDistance>0.f) ? fMaxDistance : pCamera->GetObjectFrustum()->GetViewDepth())*vNormal, -vNormal);
+			auto t1 = ((fMaxDistance > 0.f) ? fMaxDistance : pCamera->GetObjectFrustum()->GetViewDepth()) * vNormal;
+			Plane plane(-vNormal, vPickRayOrig + t1);
 			pFrustum->AddCullingPlane(plane, false);
 		}
 	}

@@ -435,7 +435,7 @@ namespace ParaEngine
 
 	BlockChunk* RenderableChunk::GetChunk()
 	{
-		if (m_regionX > 0 && m_pWorld)
+		if (m_regionX >= 0 && m_pWorld)
 		{
 			BlockRegion * pOwnerBlockRegion = m_pWorld->GetRegion(m_regionX, m_regionZ);
 			if(pOwnerBlockRegion)
@@ -853,7 +853,7 @@ namespace ParaEngine
 		
 		if (!m_memoryBuffers.empty())
 		{
-			for (ParaMemoryBuffer memBuffer : m_memoryBuffers)
+			for (ParaMemoryBuffer& memBuffer : m_memoryBuffers)
 			{
 				ParaVertexBuffer* pBuffer = RequestVertexBuffer(memBuffer.GetBufferSize() / (sizeof(BlockVertexCompressed) * 4));
 				if (pBuffer)

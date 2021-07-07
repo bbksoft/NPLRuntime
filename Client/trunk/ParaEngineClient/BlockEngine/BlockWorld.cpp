@@ -20,6 +20,8 @@
 #include "BlockLightGridBase.h"
 #include "TextureEntity.h"
 #include "BlockWorld.h"
+#include "SceneObject.h"
+#include "BipedObject.h"
 
 using namespace ParaEngine;
 
@@ -39,7 +41,7 @@ namespace ParaEngine
 CBlockWorld::CBlockWorld()
 	:m_curChunkIdW(-1), m_activeChunkDim(0), m_lastChunkIdW(-1), m_lastChunkIdW_RegionCache(-1), m_lastViewCheckIdW(0), m_dwBlockRenderMethod(BLOCK_RENDER_FAST_SHADER), m_sunIntensity(1), m_isVisibleChunkDirty(true), m_curRegionIdX(0), m_curRegionIdZ(0),
 m_pLightGrid(new CBlockLightGridBase(this)), m_bReadOnlyWorld(false), m_bIsRemote(false), m_bIsServerWorld(false), m_bCubeModePicking(false), m_isInWorld(false), m_bSaveLightMap(false), 
-m_bUseAsyncLoadWorld(true), m_bRenderBlocks(true), m_group_by_chunk_before_texture(false), m_is_linear_torch_brightness(false),
+m_bUseAsyncLoadWorld(true), m_bRenderBlocks(true), m_group_by_chunk_before_texture(false), m_is_linear_torch_brightness(false), m_maxCacheRegionCount(0),
 m_minWorldPos(0, 0, 0), m_maxWorldPos(0xffff, 0xffff, 0xffff), m_minRegionX(0), m_minRegionZ(0), m_maxRegionX(63), m_maxRegionZ(63)
 {
 	// 256 blocks, so that it never wraps
@@ -388,6 +390,18 @@ BlockRegion* CBlockWorld::CreateGetRegion(uint16_t region_x, uint16_t region_z)
 	}
 	else
 		return NULL;
+}
+
+void ParaEngine::CBlockWorld::ResetAllLight()
+{
+	for (auto& item : m_regionCache)
+	{
+		item.second->ClearAllLight();
+	}
+
+	auto& lightGrid = GetLightGrid();
+
+	lightGrid.OnEnterWorld();
 }
 
 bool ParaEngine::CBlockWorld::UnloadRegion(uint16_t block_x, uint16_t block_y, uint16_t block_z, bool bAutoSave /*= true*/)
@@ -817,6 +831,58 @@ uint32_t CBlockWorld::GetBlockUserDataByIdx(uint16_t x, uint16_t y, uint16_t z)
 	return GetBlockData(x, y, z);
 }
 
+bool CBlockWorld::SetBlockVisible(uint16_t templateId, bool value, bool bRefreshWorld)
+{
+	BlockTemplate* pTemp = GetBlockTemplate(templateId);
+
+	if (pTemp)
+	{
+		if (!value == pTemp->IsMatchAttribute(BlockTemplate::batt_invisible))
+			return false;
+
+		if (!value)
+		{
+			BlockTemplateVisibleData visibleData;
+			visibleData.lightOpyValue = pTemp->GetLightOpacity();
+			visibleData.isTransparent = pTemp->IsMatchAttribute(BlockTemplate::batt_transparent);
+			visibleData.torchLight = pTemp->GetTorchLight();
+
+			m_blockTemplateVisibleDatas[templateId] = visibleData;
+
+			pTemp->SetAttribute(BlockTemplate::batt_transparent, true);
+			pTemp->SetAttribute(BlockTemplate::batt_invisible, true);
+			pTemp->SetLightOpacity(0);
+			pTemp->SetTorchLight(0);
+		}
+		else
+		{
+			pTemp->SetAttribute(BlockTemplate::batt_invisible, false);
+			auto visibleDataItr = m_blockTemplateVisibleDatas.find(templateId);
+			if (visibleDataItr != m_blockTemplateVisibleDatas.end())
+			{
+				pTemp->SetAttribute(BlockTemplate::batt_transparent, visibleDataItr->second.isTransparent);
+				pTemp->SetLightOpacity(visibleDataItr->second.lightOpyValue);
+				pTemp->SetTorchLight(visibleDataItr->second.torchLight);
+
+				m_blockTemplateVisibleDatas.erase(templateId);
+			}
+		}
+		if (bRefreshWorld) {
+			RefreshBlockTemplate(templateId);
+			return false;
+		}
+		return true;
+	}
+	return false;
+}
+
+void ParaEngine::CBlockWorld::RefreshBlockTemplate(uint16_t templateId)
+{
+	for (auto& iter : m_regionCache)
+	{
+		iter.second->SetChunksDirtyByBlockTemplate(templateId);
+	}
+}
 
 uint32_t ParaEngine::CBlockWorld::SetBlockId(uint16_t x, uint16_t y, uint16_t z, uint32_t nBlockID)
 {
@@ -893,6 +959,19 @@ Block* CBlockWorld::GetBlock(uint16_t x_ws, uint16_t y_ws, uint16_t z_ws)
 		return pRegion->GetBlock(lx, ly, lz);
 	}
 	return NULL;
+}
+
+
+Block* CBlockWorld::GetUnlockBlock(uint16_t x, uint16_t y, uint16_t z)
+{
+	uint16_t lx, ly, lz;
+	BlockRegion* pRegion = GetRegion(x, y, z, lx, ly, lz);
+
+	if (pRegion && !pRegion->IsLocked())
+	{
+		return pRegion->GetBlock(lx, ly, lz);
+	}
+	return nullptr;
 }
 
 BlockTemplate* CBlockWorld::GetBlockTemplate(uint16_t x, uint16_t y, uint16_t z)
@@ -2119,8 +2198,8 @@ bool ParaEngine::CBlockWorld::ChunkColumnExists(uint16_t chunkX, uint16_t chunkZ
 
 bool ParaEngine::CBlockWorld::IsChunkLocked(uint32 worldX, uint32 worldZ)
 {
-	int16_t regionX = (int16_t)(worldX >> 5);
-	int16_t regionZ = (int16_t)(worldZ >> 5);
+	int16_t regionX = (int16_t)(worldX >> 9);
+	int16_t regionZ = (int16_t)(worldZ >> 9);
 
 	BlockRegion* pRegion = GetRegion(regionX, regionZ);
 	if (pRegion && !pRegion->IsLocked())
@@ -2382,6 +2461,8 @@ int ParaEngine::CBlockWorld::InstallFields(CAttributeClass* pClass, bool bOverri
 
 	pClass->AddField("ResumeLightUpdate", FieldType_void, (void*)ResumeLightUpdate_s, NULL, NULL, "", bOverride);
 	pClass->AddField("SuspendLightUpdate", FieldType_void, (void*)SuspendLightUpdate_s, NULL, NULL, "", bOverride);
+
+	pClass->AddField("ResetAllLight", FieldType_void, (void*)ResetAllLight_s, NULL, NULL, "", bOverride);
 
 	pClass->AddField("LockWorld", FieldType_void, (void*)LockWorld_s, NULL, NULL, "", bOverride);
 	pClass->AddField("UnlockWorld", FieldType_void, (void*)UnlockWorld_s, NULL, NULL, "", bOverride);

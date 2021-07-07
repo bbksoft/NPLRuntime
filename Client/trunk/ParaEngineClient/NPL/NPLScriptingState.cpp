@@ -397,28 +397,17 @@ uint32 ParaScripting::CNPLScriptingState::GetScriptDiskPath(const string& filePa
 			return dwFound;
 		}
 	}
-
-	// 2008.5.7: we will first find if there is an up to date compiled version in the bin directory. if there is, 
-	// we will load the compiled version, otherwise we will use the text version. 
-	sFileName = std::string("bin/") + filePath;
-	sFileName = CParaFile::ChangeFileExtension(sFileName, "o");
-
-	if ((dwFound = ParaEngine::CParaFile::DoesFileExist2(sFileName.c_str(), FILE_ON_ZIP_ARCHIVE | FILE_ON_DISK | FILE_ON_SEARCH_PATH)))
+	
+	if ((dwFound = ParaEngine::CParaFile::DoesFileExist2(filePath.c_str(), FILE_ON_ZIP_ARCHIVE | FILE_ON_DISK | FILE_ON_SEARCH_PATH)))
 	{
-		time_t srcTime, binTime;
-		uint32 dwFoundSrc = FILE_NOT_FOUND;
-		if ((dwFoundSrc = ParaEngine::CParaFile::DoesFileExist2(filePath.c_str(), FILE_ON_ZIP_ARCHIVE | FILE_ON_DISK | FILE_ON_SEARCH_PATH))
-			&& (!ParaEngine::GetLastFileWriteTime(filePath.c_str(), srcTime) || !ParaEngine::GetLastFileWriteTime(sFileName.c_str(), binTime) || (srcTime > binTime)))
-		{
-			// use src version, if source version exist and up to date. 
-			sFileName = filePath;
-			dwFound = dwFoundSrc;
-		}
+		sFileName = filePath;
 	}
 	else
 	{
-		dwFound = ParaEngine::CParaFile::DoesFileExist2(filePath.c_str(), FILE_ON_ZIP_ARCHIVE | FILE_ON_DISK | FILE_ON_SEARCH_PATH);
-		sFileName = filePath;
+		// search bin/[path].o version if non-compiled source code version not found. 
+		sFileName = std::string("bin/") + filePath;
+		sFileName = CParaFile::ChangeFileExtension(sFileName, "o");
+		dwFound = ParaEngine::CParaFile::DoesFileExist2(sFileName.c_str(), FILE_ON_ZIP_ARCHIVE | FILE_ON_DISK | FILE_ON_SEARCH_PATH);
 	}
 #endif
 	return dwFound;
@@ -447,6 +436,11 @@ void ParaScripting::CNPLScriptingState::SetFileLoadStatus(const string& filepath
 	{
 		m_loaded_files[CParaFile::ChangeFileExtension(filepath, "lua")] = nStatus;
 	}
+}
+
+const std::map <std::string, int32>& ParaScripting::CNPLScriptingState::GetLoadedFiles()
+{
+	return m_loaded_files;
 }
 
 void ParaScripting::CNPLScriptingState::PushFileName(const string& filename)
@@ -539,6 +533,7 @@ bool ParaScripting::CNPLScriptingState::LoadFile(const string& filePath, bool bR
 						std::string funcName = "loadstring";
 						lua_pushlstring(L, funcName.c_str(), funcName.size());
 						lua_gettable(L, -2);
+						lua_remove(L, -2);
 						if (lua_isfunction(L, -1))
 						{
 							int top = lua_gettop(L);
@@ -557,6 +552,7 @@ bool ParaScripting::CNPLScriptingState::LoadFile(const string& filePath, bool bR
 									if (nResult == 0)
 									{
 										CacheFileModule(filePath, num_results, L);
+										num_results = lua_gettop(L) - top + 1;
 										if (bNoReturn && num_results > 0){
 											lua_pop(L, num_results);
 										}
@@ -571,12 +567,14 @@ bool ParaScripting::CNPLScriptingState::LoadFile(const string& filePath, bool bR
 						}
 						else
 						{
-							OUTPUT_LOG("warning: no NPL.loadstring function not found when compiling %s\n", filePath.c_str());
 							lua_pop(L, 1);
+							OUTPUT_LOG("warning: no NPL.loadstring function not found when compiling %s\n", filePath.c_str());
 						}
 					}
-					// pops the element, so that the stack is balanced.
-					lua_pop(L, 1);
+					else
+					{
+						lua_pop(L, 1);
+					}
 				}
 				else
 				{
@@ -592,6 +590,7 @@ bool ParaScripting::CNPLScriptingState::LoadFile(const string& filePath, bool bR
 						if (nResult == 0)
 						{
 							CacheFileModule(filePath, num_results, L);
+							num_results = lua_gettop(L) - top + 1;
 							if (bNoReturn && num_results > 0){
 								lua_pop(L, num_results);
 							}
@@ -606,7 +605,12 @@ bool ParaScripting::CNPLScriptingState::LoadFile(const string& filePath, bool bR
 			std::string sExt = CParaFile::GetFileExtension(sFileName);
 			if (sExt == "npl" || sExt == "lua")
 			{
-				OUTPUT_LOG("warning: script file %s not found\n", sFileName.c_str());
+				if (!dwFound) {
+					OUTPUT_LOG("warning: script file %s not found\n", sFileName.c_str());
+				}
+				else {
+					OUTPUT_LOG("warning: script file %s found but can not be opened\n", sFileName.c_str());
+				}
 			}
 			SetFileLoadStatus(filePath, NPL_FILE_MODULE_NOT_FOUND);
 			nFileStatus = NPL_FILE_MODULE_NOT_FOUND;
@@ -634,14 +638,13 @@ bool ParaScripting::CNPLScriptingState::LoadFile(const string& filePath, bool bR
 }
 
 
-void ParaScripting::CNPLScriptingState::CacheFileModule(const std::string& filename, int nResult, lua_State* L)
+int ParaScripting::CNPLScriptingState::CacheFileModule(const std::string& filename, int nResult, lua_State* L)
 {
 	int nFileStatus = GetFileLoadStatus(filename);
 	if (nResult == 0 && (nFileStatus > 0 || nFileStatus == -1))
 	{
 		// this could happen when user used NPL.export() instead of return for file module.
-		PopFileModule(filename, L);
-		return;
+		return PopFileModule(filename, L);
 	}
 	SetFileLoadStatus(filename, nResult);
 	if (nResult > 0 || nResult == -1)
@@ -692,6 +695,7 @@ void ParaScripting::CNPLScriptingState::CacheFileModule(const std::string& filen
 			lua_pop(L, 1);
 		}
 	}
+	return 0;
 }
 
 int ParaScripting::CNPLScriptingState::PopFileModule(const std::string& filename, lua_State* L)

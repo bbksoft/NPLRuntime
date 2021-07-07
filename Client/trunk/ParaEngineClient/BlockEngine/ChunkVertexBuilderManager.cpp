@@ -23,7 +23,7 @@ using namespace ParaEngine;
 
 ParaEngine::ChunkVertexBuilderManager::ChunkVertexBuilderManager()
 	:m_nMaxPendingChunks(4), m_nMaxUploadingChunks(4), m_bChunkThreadStarted(false),
-	m_nMaxChunksToUploadPerTick(8), m_nMaxBytesToUploadPerTick(4*1024*1024)
+	m_nMaxChunksToUploadPerTick(8), m_nMaxBytesToUploadPerTick(4*1024*1024), m_pBlockWorld(nullptr)
 {
 
 }
@@ -289,11 +289,16 @@ void ParaEngine::ChunkVertexBuilderManager::ChunkBuildThreadProc()
 	{
 		if (ProcessOneChunk(lock_) == 0)
 		{
-			std::unique_lock<std::mutex> QueueLock_(m_mutex);
 			if (m_pendingChunks.empty())
 			{
 				lock_.unlock();
-				m_chunk_request_signal.wait(QueueLock_);
+				{
+					std::unique_lock<std::mutex> QueueLock_(m_queueMutex);
+					if (m_pendingChunks.empty())
+					{
+						m_chunk_request_signal.wait(QueueLock_);
+					}
+				}
 				lock_.lock();
 			}
 		}

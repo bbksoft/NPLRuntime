@@ -423,7 +423,8 @@ void CNPLRuntime::AsyncDownload( const char* url, const char* destFolder, const 
 		return;
 	using namespace ParaEngine;
 	CAsyncLoader* pAsyncLoader = &(CAsyncLoader::GetSingleton());
-	pAsyncLoader->log(string("NPL.AsyncDownload Started:")+string(url)+"\n");
+	string sTmp = string("NPL.AsyncDownload Started:") + string(url) + "\n";
+	pAsyncLoader->log(sTmp);
 	CUrlLoader* pLoader = new CUrlLoader();
 	CUrlProcessor* pProcessor = new CUrlProcessor();
 
@@ -433,7 +434,8 @@ void CNPLRuntime::AsyncDownload( const char* url, const char* destFolder, const 
 	pProcessor->SetSaveToFile(destFolder);
 	if(pAsyncLoader->AddWorkItem( pLoader, pProcessor, NULL, NULL,ResourceRequestID_Asset) != S_OK)
 	{
-		pAsyncLoader->log(string("NPL.AsyncDownload Failed:")+string(url)+"\n");
+		string sTmp = string("NPL.AsyncDownload Failed:") + string(url) + "\n";
+		pAsyncLoader->log(sTmp);
 	}
 
 	// obsoleted: we used UrlLoader now
@@ -673,6 +675,12 @@ string CNPLRuntime::NPL_GetIP(const char* nid)
 	return "";
 }
 
+void CNPLRuntime::NPL_SetProtocol(const char* nid, int protocolType /*= 0*/)
+{
+	NPL::CNPLRuntime::GetInstance()->GetNetServer()->GetDispatcher().NPL_SetProtocol(nid, (NPL::CNPLConnection::ProtocolType)protocolType);
+
+}
+
 void CNPLRuntime::NPL_accept(const char* sTID, const char* sNID)
 {
 	if(sTID!=0)
@@ -762,7 +770,7 @@ void CNPLRuntime::SetHostMainStatesInFrameMove(bool bHostMainStatesInFrameMove)
 void CNPLRuntime::Run(bool bToEnd)
 {
 	/** dispatch events in NPL. */
-	#if !defined(PARAENGINE_MOBILE) && !defined(PLATFORM_MAC)
+	#if !defined(PARAENGINE_MOBILE)
 	ParaEngine::CFileSystemWatcherService::GetInstance()->DispatchEvents();
     #endif
 
@@ -1063,6 +1071,21 @@ void CNPLRuntime::SetMaxPendingConnections(int val)
 	NPL::CNPLRuntime::GetInstance()->GetNetServer()->SetMaxPendingConnections(val);
 }
 
+const std::string& NPL::CNPLRuntime::GetHostPort()
+{
+	return NPL::CNPLRuntime::GetInstance()->GetNetServer()->GetHostPort();
+}
+
+const std::string& NPL::CNPLRuntime::GetHostIP()
+{
+	return NPL::CNPLRuntime::GetInstance()->GetNetServer()->GetHostIP();
+}
+
+bool NPL::CNPLRuntime::IsServerStarted()
+{
+	return NPL::CNPLRuntime::GetInstance()->GetNetServer()->IsServerStarted();
+}
+
 void CNPLRuntime::EnableAnsiMode( bool bEnable )
 {
 	NPL::CNPLRuntime::GetInstance()->GetNetServer()->EnableAnsiMode(bEnable);
@@ -1108,5 +1131,8 @@ int CNPLRuntime::InstallFields(ParaEngine::CAttributeClass* pClass, bool bOverri
 	pClass->AddField("MaxPendingConnections", FieldType_Int, (void*)SetMaxPendingConnections_s, (void*)GetMaxPendingConnections_s, NULL, NULL, bOverride);
 	pClass->AddField("LogLevel", FieldType_Int, (void*)SetLogLevel_s, (void*)GetLogLevel_s, NULL, NULL, bOverride);
 	pClass->AddField("EnableAnsiMode",FieldType_Bool, (void*)EnableAnsiMode_s, (void*)IsAnsiMode_s, NULL, NULL, bOverride);
+	pClass->AddField("IsServerStarted", FieldType_Bool, (void*)0, (void*)IsServerStarted_s, NULL, NULL, bOverride);
+	pClass->AddField("HostIP", FieldType_String, (void*)0, (void*)GetHostIP_s, NULL, NULL, bOverride);
+	pClass->AddField("HostPort", FieldType_String, (void*)0, (void*)GetHostPort_s, NULL, NULL, bOverride);
 	return S_OK;
 }

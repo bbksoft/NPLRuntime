@@ -121,7 +121,7 @@ void CNPLScriptingState::LoadHAPI_SceneManager()
 
 				def("SetBlockUserData",&ParaTerrain::SetBlockUserData),
 				def("SetBlockUserDataByIdx",&ParaTerrain::SetBlockUserDataByIdx),
-				
+		
 				def("GetBlockUserData",&ParaTerrain::GetBlockUserData),
 				def("GetBlockUserDataByIdx",&ParaTerrain::GetBlockUserDataByIdx),
 
@@ -146,7 +146,7 @@ void CNPLScriptingState::LoadHAPI_SceneManager()
 				def("SetChunkColumnTimeStamp", &ParaTerrain::SetChunkColumnTimeStamp),
 				def("GetMapChunkData", &ParaTerrain::GetMapChunkData),
 				def("ApplyMapChunkData", &ParaTerrain::ApplyMapChunkData),
-
+				def("GetBlockFullData", &ParaTerrain::GetBlockFullData, pure_out_value(_4) + pure_out_value(_5)),
 				def("SetBlockWorldSunIntensity",&ParaTerrain::SetBlockWorldSunIntensity)
 			]
 		];
@@ -219,6 +219,7 @@ void CNPLScriptingState::LoadHAPI_ResourceManager()
 				.def("EndPass", &ParaAssetObject::EndPass)
 				.def("End", &ParaAssetObject::End)
 				.def("CommitChanges", &ParaAssetObject::CommitChanges)
+				.def("SetCallback", &ParaAssetObject::SetCallback)
 				.def("GetType", &ParaAssetObject::GetType),
 				// parameter block object declarations
 				class_<ParaParamBlock>("ParaParamBlock")
@@ -243,6 +244,7 @@ void CNPLScriptingState::LoadHAPI_ResourceManager()
 				def("OpenArchive", &ParaAsset::OpenArchiveEx),
 				def("CloseArchive", &ParaAsset::CloseArchive),
 				def("GeneratePkgFile", &ParaAsset::GeneratePkgFile),
+				def("GeneratePkgFile", &ParaAsset::GeneratePkgFile_),
 				def("Init", &ParaAsset::Init),
 				def("Unload", &ParaAsset::Unload),
 				def("UnloadAll", &ParaAsset::UnloadAll),
@@ -255,6 +257,7 @@ void CNPLScriptingState::LoadHAPI_ResourceManager()
 				def("LoadStaticMesh", &ParaAsset::LoadStaticMesh),
 				def("LoadTexture", &ParaAsset::LoadTexture),
 				def("LoadRenderTarget", &ParaAsset::LoadRenderTarget),
+				def("LoadPickingBuffer", &ParaAsset::LoadPickingBuffer),
 				def("LoadSpriteFrame", &ParaAsset::LoadSpriteFrame),
 				def("LoadFont", &ParaAsset::LoadFont),
 				def("LoadImageFont", &ParaAsset::LoadImageFont),
@@ -334,6 +337,7 @@ void CNPLScriptingState::LoadHAPI_NPL()
 				def("AddNPLRuntimeAddress", &CNPL::AddNPLRuntimeAddress),
 				def("GetIP", &CNPL::GetIP),
 				def("accept", &CNPL::accept),
+				def("SetProtocol", &CNPL::SetProtocol),
 				def("reject", &CNPL::reject),
 				def("SetUseCompression", &CNPL::SetUseCompression),
 				def("SetCompressionKey", &CNPL::SetCompressionKey),
@@ -350,6 +354,7 @@ void CNPLScriptingState::LoadHAPI_NPL()
 				def("DoString",&CNPL::DoString2),
 				def("test",&CNPL::test),
 				def("SerializeToSCode",&CNPL::SerializeToSCode),
+				def("SerializeToSCode", &CNPL::SerializeToSCode2),
 				def("IsSCodePureData",&CNPL::IsSCodePureData),
 				def("IsPureData",&CNPL::IsPureData),
 				def("IsPureTable",&CNPL::IsPureTable),

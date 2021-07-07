@@ -8,7 +8,7 @@
 //-----------------------------------------------------------------------
 #include "ParaEngine.h"
 #ifdef USE_OPENGL_RENDERER
-#include "platform/OpenGLWrapper.h"
+#include "OpenGLWrapper.h"
 #include "TextureEntity.h"
 //#include "CGUIRootLayer.h"
 #include "EffectManager.h"
@@ -18,7 +18,6 @@
 #include "SpriteRendererOpenGL.h"
 
 using namespace ParaEngine;
-USING_NS_CC;
 
 ParaEngine::CSpriteRendererOpenGL::CSpriteRendererOpenGL()
 	:m_sprite_count(0), m_pEffectFile(0), m_bNeedUpdateShader(false), m_bIsTextMode(false), m_bIsTextModeDevice(false)

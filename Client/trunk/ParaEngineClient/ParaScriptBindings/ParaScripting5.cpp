@@ -42,6 +42,7 @@ extern "C"
 
 #include <luabind/luabind.hpp>
 #include <luabind/out_value_policy.hpp>
+#include <luabind/raw_policy.hpp>
 
 #include "ParaScriptingIO.h"
 #include "ParaScriptingIC.h"
@@ -316,6 +317,8 @@ void CNPLScriptingState::LoadHAPI_Globals()
 			def("ReadRegStr", & ParaGlobal::ReadRegStr), 
 			def("ReadRegDWORD", & ParaGlobal::ReadRegDWORD), 
 			def("WriteRegDWORD", & ParaGlobal::WriteRegDWORD), 
+			
+			def("SelectAttributeObject", &ParaGlobal::SelectAttributeObject),
 
 			def("log", & ParaGlobal::WriteToLogFile)
 		]
@@ -361,6 +364,7 @@ void CNPLScriptingState::LoadHAPI_Globals()
 		.def("GetSchematicsMinMax", &ParaAttributeObject::GetSchematicsMinMax, pure_out_value(_5) + pure_out_value(_6))
 		.def("GetSchematicsType", &ParaAttributeObject::GetSchematicsType)
 		.def("GetField", &ParaAttributeObject::GetField)
+		.def("GetField", &ParaAttributeObject::GetField2, raw(_3))
 		.def("SetField", &ParaAttributeObject::SetField)
 		.def("CallField", &ParaAttributeObject::CallField)
 		.def("ResetField", &ParaAttributeObject::ResetField)
@@ -525,6 +529,7 @@ void CNPLScriptingState::LoadHAPI_Globals()
 				.def(constructor<>())
 				.def("IsValid", &ParaZipWriter::IsValid)
 				.def("ZipAdd", &ParaZipWriter::ZipAdd)
+				.def("ZipAddData", &ParaZipWriter::ZipAddData)
 				.def("ZipAddFolder", &ParaZipWriter::ZipAddFolder)
 				.def("AddDirectory", &ParaZipWriter::AddDirectory)
 				.def("close", &ParaZipWriter::close),
@@ -555,7 +560,9 @@ void CNPLScriptingState::LoadHAPI_Globals()
 			
 			def("open", & ParaIO::open),
 			def("openimage", & ParaIO::openimage),
+			def("openimage", &ParaIO::openimage2),
 			def("readline", & ParaIO::readline),
+			def("readline", &ParaIO::readline2),
 			def("WriteString", & ParaIO::WriteString),
 			def("write", & ParaIO::write),
 			def("DoesFileExist", & ParaIO::DoesFileExist),

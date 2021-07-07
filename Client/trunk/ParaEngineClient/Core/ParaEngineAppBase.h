@@ -316,6 +316,8 @@ namespace ParaEngine
 		virtual void SetWindowText(const char* pChar) {};
 		/** get the window title when at windowed mode */
 		virtual const char* GetWindowText() { return ""; };
+		/* */
+		virtual void FixWindowSize(bool fixed) {};
 
 
 		/** write the current setting to config file. Such as graphics mode and whether full screen, etc.
@@ -366,8 +368,9 @@ namespace ParaEngine
 		* it will first search the dev folder, then the current folder, and then the executable folder and all of its parent folders.
 		* Once the folder is found, it is added to the global search path.
 		* @param sFilePath: for example, "npl_packages/main/" is always loaded on start up.
+		* @param pOutMainFile: output of the actual folder name or a main loader file path in the main loader. 
 		*/
-		virtual bool LoadNPLPackage(const char* sFilePath);
+		virtual bool LoadNPLPackage(const char* sFilePath, std::string * pOutMainFile = NULL);
 
 		/** check if there is bootstrapper file specified at command line, if not it will use NPL code wiki admin app. 
 		*/
@@ -375,6 +378,14 @@ namespace ParaEngine
 
 		/** parse common command line parameters */
 		virtual bool InitCommandLineParams();
+
+
+		/** render the current frame and does not return until everything is presented to screen.
+		* this function is usually used to draw the animated loading screen. */
+		virtual bool ForceRender();
+
+		/** get the NPL bin directory (main executable directory). this one ends with "/" */
+		virtual const char* GetModuleDir();;
 	public:
 		/** managing multiple 3d views */
 		CViewportManager* GetViewportManager() { return NULL; };
@@ -411,6 +422,8 @@ namespace ParaEngine
 		std::string m_sPackagesDir;
 		/** bin/ module path */
 		std::string m_sModuleDir;
+		/** initial working directory*/
+		std::string m_sInitialWorkingDir;
 		/** application state */
 		PEAppState m_nAppState;
 	};

@@ -69,9 +69,16 @@ namespace ParaScripting
 		void Reset1(const char* onResetScode);
 
 		/**
-		* TODO: get statistics about this runtime environment. 
+		* get statistics about this runtime environment.
+		* e.g. local stats = NPL.GetStats({connection_count = true, nids_str=true, nids = true});
+		* @param input: this should be a table containing mapping from string to true. function will return a new table by replacing true with the actual data. such as {["connection_count"] = true, ["nids_str"] = true }, supported fields are
+		*  "connection_count" : total connection.
+		*  "nids_str": commar separated list of nids.
+		*  "nids": a table array of nids
+		*  "loadedfiles": a table array of loaded files in the current NPL runtime state
+		* @return {connection_count = 10, nids_str="101,102,"}
 		*/
-		object GetStats(const object& inout);
+		object GetStats(const object& input);
 
 		/** Get the current number of messages in the input message queue. Sometimes, a monitor or dispatcher logics may need to know the queue size of all NPL runtime states. 
 		* and a dispatcher will usually need to add new messages to the NPL state with smallest queue size. 
@@ -315,6 +322,7 @@ namespace ParaScripting
 		* @return sCode the output scode
 		*/
 		static const string& SerializeToSCode(const char* sStorageVar, const object& input);
+		static const string& SerializeToSCode2(const char* sStorageVar, const object& input, bool sort);
 
 		/** verify the script code. it returns true if the script code contains pure msg data or table. 
 		* this function is used to verify scode received from the network. So that the execution of a pure data in the local runtime is harmless. 
@@ -376,6 +384,7 @@ namespace ParaScripting
 		*  "connection_count" : total connection. 
 		*  "nids_str": commar separated list of nids.  
 		*  "nids": a table array of nids
+		*  "loadedfiles": a table array of loaded files in the current NPL runtime state
 		* @return {connection_count = 10, nids_str="101,102,"}
 		*/
 		static object GetStats(const object& inout);
@@ -416,6 +425,10 @@ namespace ParaScripting
 
 		/** this function is used by C++ API interface. */
 		static void accept_(const char* tid, const char* nid);
+
+		/** set transmission protocol, default value is 0. */
+		static void SetProtocol(const char* nid, int protocolType);
+		
 
 		/** reject and close a given connection. The connection will be closed once rejected. 
 		* [thread safe]
@@ -690,6 +703,7 @@ namespace ParaScripting
 		*    - "d": download pool. default size is 2, for downloading files. 
 		*    - "r": rest pool. default size is 5, for REST like HTTP get/post calls.
 		*    - "w": web pool. default size is 5, for web based requests.
+		*    - "self": this will block and use the current thread instead of additional thread.
 		*/
 		static bool AppendURLRequest1(const object& url, const char* sCallback, const object& sForm, const char* sPoolName);
 

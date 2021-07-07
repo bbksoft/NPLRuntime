@@ -172,6 +172,12 @@ namespace ParaScripting
 
 		/** set/get exported file module. */
 		int NPL_export(lua_State* L = 0);
+
+		/** NOT thread-safe:
+		* all loaded files mapping from filename to number of cached objects.
+		* If -1, it means that file is being loaded or something went wrong. 0 means no cached object.
+		*/
+		const std::map <std::string, int32>& GetLoadedFiles();
 	protected:
 
 		/** destroy the runtime state
@@ -193,11 +199,12 @@ namespace ParaScripting
 		void ProcessResult(int nResult, lua_State* L = 0);
 
 		/** save nResult objects on stack to file modules 
+		* @return the number of new result pushed on stack. usually 1 or 0
 		*/
-		void CacheFileModule(const std::string& filename, int nResult, lua_State* L = 0);
+		int CacheFileModule(const std::string& filename, int nResult, lua_State* L = 0);
 
 		/** pop file module to stack for a given file. Return true, if file is loaded before or false if not. 
-		* @return the number of result. usually 1 or 0
+		* @return the number of result pushed on stack. usually 1 or 0
 		*/
 		int PopFileModule(const std::string& filename, lua_State* L = 0);
 

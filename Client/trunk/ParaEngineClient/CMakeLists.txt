@@ -229,6 +229,14 @@ SOURCE_GROUP("Shader Files\\Headers Files" FILES ${ParaEngineClient_SHADER_HEADE
 list(APPEND ParaEngineClient_SRCS ${ParaEngineClient_SHADER_FILES} ${ParaEngineClient_SHADER_HEADER_FILES})
 
 ##############################
+# embedded resource 
+set(EmbeddedResource_FILES)
+list(APPEND EmbeddedResource_FILES ${ParaEngineClient_SOURCE_DIR}/ResourceEmbedded.cpp)
+list(APPEND ParaEngineClient_SRCS ${EmbeddedResource_FILES})
+SOURCE_GROUP("ResEmbedded" FILES ${EmbeddedResource_FILES})
+
+
+##############################
 # util files
 file (GLOB ParaEngineClient_UTIL_FILES ${PROJECT_SOURCE_DIR}/util/*.h ${PROJECT_SOURCE_DIR}/util/*.cpp ${PROJECT_SOURCE_DIR}/util/*.hpp ${PROJECT_SOURCE_DIR}/util/*.c)
 SOURCE_GROUP("util" FILES ${ParaEngineClient_UTIL_FILES})
@@ -240,6 +248,12 @@ file (GLOB ParaEngineClient_DOCUMENT_FILES ${PROJECT_SOURCE_DIR}/doc/*.*)
 SOURCE_GROUP("doc" FILES ${ParaEngineClient_DOCUMENT_FILES})
 set_source_files_properties(${ParaEngineClient_DOCUMENT_FILES} PROPERTIES HEADER_FILE_ONLY TRUE)
 list(APPEND ParaEngineClient_SRCS ${ParaEngineClient_DOCUMENT_FILES})
+
+##############################
+# WebSocket
+file (GLOB ParaEngineClient_WebSocket_FILES ${ParaEngineClient_SOURCE_DIR}/WebSocket/*.cpp ${ParaEngineClient_SOURCE_DIR}/WebSocket/*.h)
+SOURCE_GROUP("NPL\\WebSocket" FILES ${ParaEngineClient_WebSocket_FILES})
+list(APPEND ParaEngineClient_SRCS ${ParaEngineClient_WebSocket_FILES})
 
 ##############################
 # Platform
@@ -314,6 +328,8 @@ include_directories("${jsoncpp_SOURCE_DIR}/include")
 IF(WIN32)
 	include_directories("${ZLIB_SOURCE_DIR}")
 	include_directories("${Assimp_SOURCE_DIR}/include")
+	include_directories("${Assimp_BINARY_DIR}/include")
+	ADD_DEFINITIONS(-DSUPPORT_FBX_MODEL_FILE)
 ENDIF(WIN32)
 
 IF(WIN32)
@@ -340,11 +356,13 @@ ADD_DEFINITIONS(-DBOOST_SIGNALS_NO_DEPRECATION_WARNING)
 ADD_DEFINITIONS(-DPARAENGINE_CLIENT)
 ADD_DEFINITIONS(-DTIXML_USE_STL)
 
-#ADD_DEFINITIONS(-DPCRE_STATIC)
-# ADD_DEFINITIONS(-DUSE_ARES)
-# ADD_DEFINITIONS(-DPE_CORE_EXPORTING)
-# ADD_DEFINITIONS(-DLIBXML_STATIC)
-# ADD_DEFINITIONS(-DCURL_STATICLIB)
+if(NPLRUNTIME_STATIC_LIB)
+	ADD_DEFINITIONS(-DNPLRUNTIME_STATICLIB)
+	ADD_DEFINITIONS(-DSQLITE_STATICLIB)
+	ADD_DEFINITIONS(-DCURL_STATICLIB)
+else()
+	ADD_DEFINITIONS(-DPE_CORE_EXPORTING)
+endif()
 
 INCLUDE (${CMAKE_ROOT}/Modules/CheckIncludeFile.cmake)
 CHECK_INCLUDE_FILE(

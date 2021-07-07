@@ -25,8 +25,22 @@ namespace ParaEngine
 		:m_bUseAO(true), m_nFaceCount(6), m_bDisableFaceCulling(false), m_bUseSelfLighting(false), m_bIsCubeAABB(true), m_nTextureIndex(0), m_bUniformLighting(false)
 	{
 		m_Vertices.resize(24);
-		LoadModelByTexture(texFaceNum);
-		m_shapeAABB.SetMinMax(Vector3(0, 0, 0), Vector3(BlockConfig::g_blockSize,BlockConfig::g_blockSize,BlockConfig::g_blockSize));
+		LoadModelByTexture(6);
+		m_shapeAABB.SetMinMax(Vector3(0, 0, 0), Vector3(BlockConfig::g_blockSize, BlockConfig::g_blockSize, BlockConfig::g_blockSize));
+	}
+
+	void BlockModel::LoadCubeModel()
+	{
+		m_bDisableFaceCulling = false;
+		m_bUseAO = true;
+		m_nFaceCount = 6;
+		m_bUseSelfLighting = false;
+		m_bIsCubeAABB = true;
+		m_nTextureIndex = 0;
+		m_bUniformLighting = false;
+		m_Vertices.resize(24);
+		LoadModelByTexture(6);
+		m_shapeAABB.SetMinMax(Vector3(0, 0, 0), Vector3(BlockConfig::g_blockSize, BlockConfig::g_blockSize, BlockConfig::g_blockSize));
 	}
 
 	void BlockModel::CloneRenderData(const BlockModel& from_block)
@@ -464,6 +478,7 @@ namespace ParaEngine
 	{
 		m_Vertices[nIndex].SetHeightScale(scale);
 	}
+	
 	void BlockModel::SetVerticalScale(EdgeVertexFlag vertex,float scale)
 	{
 		if(vertex == evf_xyz)

@@ -45,6 +45,10 @@ void CBootStrapper::SetMainLoopFile( const string& sMainFile )
 	m_sMainLoopFile = sMainFile;
 }
 
+bool ParaEngine::CBootStrapper::IsEmpty()
+{
+	return m_sMainLoopFile == DEFAULT_GAME_LOOP_FILE;
+}
 
 const string& CBootStrapper::GetConfigFile()
 {
@@ -157,7 +161,12 @@ bool CBootStrapper::LoadFromFile( const string& sXMLfile )
 		|| ((sXMLfile[nSize - 3] == 'n') && (sXMLfile[nSize - 2] == 'p') && (sXMLfile[nSize - 1] == 'l'))))
 	{
 		// if the file extension is "lua" or "npl", we will use it directly. 
-		SetMainLoopFile(sXMLfile);
+		if (sXMLfile[0] == '.' && sXMLfile[1] == '/') {
+			string filename = sXMLfile.substr(2);
+			SetMainLoopFile(filename);
+		}
+		else
+			SetMainLoopFile(sXMLfile);
 		return true;
 	}
 
@@ -229,4 +238,6 @@ bool CBootStrapper::SaveToFile( const string& sXMLfile )
 
 	return doc.SaveFile( sFileName );
 }
+
+
 #endif

@@ -24,7 +24,7 @@
 namespace ParaEngine
 {
 	BMaxObject::BMaxObject()
-		:m_fScale(1.0f), m_fLastBlockLight(0.f), m_dwLastBlockHash(0), 
+		:m_fScale(1.0f), m_fLastBlockLight(0.f), m_dwLastBlockHash(0), m_bEnableAnim(true), m_curTime(0),
 		m_nPhysicsGroup(0), m_dwPhysicsMethod(PHYSICS_FORCE_NO_PHYSICS)
 	{
 		SetAttribute(OBJ_VOLUMN_FREESPACE);
@@ -33,6 +33,42 @@ namespace ParaEngine
 	BMaxObject::~BMaxObject()
 	{
 		UnloadPhysics();
+	}
+
+	int BMaxObject::GetChildAttributeObjectCount(int nColumnIndex /*= 0*/)
+	{
+		if (nColumnIndex == 0)
+			return CBaseObject::GetChildAttributeObjectCount(nColumnIndex);
+		else if (nColumnIndex == 1)
+			// exposing primary asset and animation instance
+			return 2;
+		else
+			return 0;
+	}
+
+	int BMaxObject::GetChildAttributeColumnCount()
+	{
+		return 2;
+	}
+
+	ParaEngine::IAttributeFields* BMaxObject::GetChildAttributeObject(int nRowIndex, int nColumnIndex /*= 0*/)
+	{
+		if (nColumnIndex == 0)
+			return CBaseObject::GetChildAttributeObject(nRowIndex, nColumnIndex);
+		else if (nColumnIndex == 1)
+		{
+			// exposing primary asset and animation instance
+			if (nRowIndex == 0)
+				return GetPrimaryAsset();
+			else if (nRowIndex == 1)
+				return GetAnimInstanceFields();
+		}
+		return NULL;
+	}
+
+	ParaEngine::IAttributeFields* BMaxObject::GetAnimInstanceFields()
+	{
+		return this;
 	}
 
 	float BMaxObject::GetScaling()
@@ -215,6 +251,32 @@ namespace ParaEngine
 		}
 	}
 
+	bool BMaxObject::UpdateModel(SceneState * sceneState /*= NULL*/)
+	{
+		if (!m_pAnimatedMesh)
+			return false;
+		int nIndex = (sceneState && IsLODEnabled()) ? m_pAnimatedMesh->GetLodIndex(sceneState->GetCameraToCurObjectDistance()/*, GetScaling()*/) : 0;
+		CParaXModel* pModel = m_pAnimatedMesh->GetModel(nIndex);
+		
+		if (pModel == NULL)
+			return false;
+		// just a single standing animation is supported now and looped. 
+		if (!m_CurrentAnim.IsValid())
+			m_CurrentAnim = pModel->GetAnimIndexByID(0);
+		if (m_CurrentAnim.IsValid() && IsAnimEnabled())
+		{
+			int nAnimLength = std::max(1, m_CurrentAnim.nEndFrame - m_CurrentAnim.nStartFrame);
+			int nToDoFrame = (m_CurrentAnim.nCurrentFrame + (int)(sceneState->dTimeDelta * 1000)) % nAnimLength;
+			m_CurrentAnim.nCurrentFrame = nToDoFrame;
+		}
+		pModel->m_CurrentAnim = m_CurrentAnim;
+		pModel->m_NextAnim.nIndex = 0;
+		pModel->m_BlendingAnim.MakeInvalid();
+		pModel->blendingFactor = 0;
+		pModel->animate(sceneState, NULL, GetAnimInstanceFields());
+		return true;
+	}
+
 	HRESULT BMaxObject::Draw(SceneState * sceneState)
 	{
 		if (!m_pAnimatedMesh)
@@ -235,10 +297,31 @@ namespace ParaEngine
 		{
 			return E_FAIL;
 		}
+		sceneState->SetCurrentSceneObject(this);
 
-		CParaXModel* pModel = m_pAnimatedMesh->GetModel(0);
+		int nIndex = (sceneState && sceneState->IsLODEnabled()) ?
+			m_pAnimatedMesh->GetLodIndex(sceneState->GetCameraToCurObjectDistance()/*, GetScaling()*/) : 0;
+		CParaXModel* pModel = m_pAnimatedMesh->GetModel(nIndex);
 		if (pModel == NULL)
 			return E_FAIL;
+		
+		int nRestoreSpecialTextures = -1;
+		for (auto const & tex : mReplaceTextures)
+		{
+			if(pModel->specialTextures[tex.first] >= 0)
+				pModel->replaceTextures[pModel->specialTextures[tex.first]] = tex.second;
+			else
+			{
+				// if there is only one texture, we will force replace it even there is no special replaceable id redefined.
+				if (pModel->GetObjectNum().nTextures <= 1 && nRestoreSpecialTextures<0)
+				{
+					nRestoreSpecialTextures = tex.first;
+					pModel->specialTextures[tex.first] = tex.first;
+					pModel->replaceTextures[pModel->specialTextures[tex.first]] = tex.second;
+					break;
+				}
+			}
+		}
 
 		sceneState->SetCurrentSceneObject(this);
 		SetFrameNumber(sceneState->m_nRenderCount);
@@ -322,21 +405,14 @@ namespace ParaEngine
 			}
 
 			// just a single standing animation is supported now and looped. 
-			if (!m_CurrentAnim.IsValid())
-				m_CurrentAnim = pModel->GetAnimIndexByID(0);
-			if (m_CurrentAnim.IsValid())
-			{
-				int nAnimLength = std::max(1, m_CurrentAnim.nEndFrame - m_CurrentAnim.nStartFrame);
-				int nToDoFrame = (m_CurrentAnim.nCurrentFrame + (int)(sceneState->dTimeDelta * 1000)) % nAnimLength;
-				m_CurrentAnim.nCurrentFrame = nToDoFrame;
-			}
-			pModel->m_CurrentAnim = m_CurrentAnim;
-			pModel->m_NextAnim.nIndex = 0;
-			pModel->m_BlendingAnim.MakeInvalid();
-			pModel->blendingFactor = 0;
-			pModel->animate(sceneState, NULL);
-			// force CParaXModel::BMAX_MODEL? 
+			UpdateModel(sceneState);
 			pModel->draw(sceneState, p.GetParamsBlock()); 
+		}
+
+		if (nRestoreSpecialTextures >= 0)
+		{
+			pModel->specialTextures[nRestoreSpecialTextures] = -1;
+			pModel->replaceTextures[nRestoreSpecialTextures] = nullptr;
 		}
 
 		CGlobals::GetWorldMatrixStack().pop();
@@ -427,6 +503,62 @@ namespace ParaEngine
 		return !((m_dwPhysicsMethod & PHYSICS_FORCE_NO_PHYSICS)>0);
 	}
 
+	void BMaxObject::EnableAnim(bool bAnimated)
+	{
+		m_bEnableAnim = bAnimated;
+	}
+
+	bool BMaxObject::IsAnimEnabled()
+	{
+		return m_bEnableAnim;
+	}
+
+	int BMaxObject::GetTime()
+	{
+		return m_curTime;
+	}
+
+	void BMaxObject::SetTime(int nTime)
+	{
+		m_curTime = nTime;
+	}
+
+	void BMaxObject::SetAnimFrame(int nFrame)
+	{
+		if (m_CurrentAnim.IsValid() && !m_CurrentAnim.IsUndetermined())
+		{
+			int nLength = m_CurrentAnim.nEndFrame - m_CurrentAnim.nStartFrame;
+			if (nLength > 0 && nFrame >= 0)
+			{
+				if (nFrame <= nLength)
+				{
+					m_CurrentAnim.nCurrentFrame = m_CurrentAnim.nStartFrame + nFrame;
+				}
+				else
+				{
+					m_CurrentAnim.nCurrentFrame = m_CurrentAnim.nStartFrame + nFrame % nLength;
+				}
+			}
+		}
+	}
+
+	int BMaxObject::GetAnimFrame()
+	{
+		return m_CurrentAnim.IsValid() ? (m_CurrentAnim.nCurrentFrame - m_CurrentAnim.nStartFrame) : 0;
+	}
+
+	TextureEntity* BMaxObject::GetReplaceableTexture(int ReplaceableTextureID)
+	{
+		auto iter=mReplaceTextures.find(ReplaceableTextureID);
+		return (mReplaceTextures.end()==iter)?nullptr:iter->second;
+	}
+
+	bool BMaxObject::SetReplaceableTexture(int ReplaceableTextureID,TextureEntity* pTextureEntity)
+	{
+		mReplaceTextures[ReplaceableTextureID]=pTextureEntity;
+		return true;
+	}
+
 	int BMaxObject::GetStaticActorCount()
 	{
 		return (int)m_staticActors.size();
@@ -435,7 +567,7 @@ namespace ParaEngine
 	int BMaxObject::InstallFields(CAttributeClass* pClass, bool bOverride)
 	{
 		CTileObject::InstallFields(pClass, bOverride);
-
+		pClass->AddField("UpdateModel", FieldType_void, (void*)UpdateModel_s, (void*)0, NULL, "", bOverride);
 		return S_OK;
 	}
 }

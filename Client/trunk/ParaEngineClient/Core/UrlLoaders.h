@@ -45,12 +45,14 @@ namespace ParaEngine
 		void SetUrl(const char* url);
 
 		/** Decompress is called by one of the processing threads to decompress the data.*/
-		HRESULT Decompress( void** ppData, int* pcBytes );
+		virtual HRESULT Decompress( void** ppData, int* pcBytes );
 		/** Destroy is called by the graphics thread when it has consumed the data. */
-		HRESULT Destroy();
+		virtual HRESULT Destroy();
 		/** Load is called from the IO thread to load data. Load the texture from the packed file.  
 		*/
-		HRESULT Load();
+		virtual HRESULT Load();
+
+		virtual bool IsDeviceObject() { return false; };
 	private:
 		std::string m_url;
 		int m_nEstimatedSizeInBytes;
@@ -90,18 +92,19 @@ namespace ParaEngine
 		void CleanUp();
 	// overrides
 	public:
-		HRESULT LockDeviceObject();
-		HRESULT UnLockDeviceObject();
-		HRESULT Destroy();
-		HRESULT Process( void* pData, int cBytes );
-		HRESULT CopyToResource();
-		void    SetResourceError();
+		virtual HRESULT LockDeviceObject();
+		virtual HRESULT UnLockDeviceObject();
+		virtual HRESULT Destroy();
+		virtual HRESULT Process( void* pData, int cBytes );
+		virtual HRESULT CopyToResource();
+		virtual void    SetResourceError();
 
 		/** set thread local data. */
-		void SetProcessorWorkerData(IProcessorWorkerData * pThreadLocalData );
+		virtual void SetProcessorWorkerData(IProcessorWorkerData * pThreadLocalData );
 		/** get thread local data. It may return NULL if the processor does not support thread local data. */
-		IProcessorWorkerData * GetProcessorWorkerData();
+		virtual IProcessorWorkerData * GetProcessorWorkerData();
 
+		virtual bool IsDeviceObject() { return false; };
 	public:
 		/** type of the url request task */
 		enum URLREQUEST_TYPE
@@ -226,6 +229,12 @@ namespace ParaEngine
 
 		/** get options as NPL table object. */
 		NPL::NPLObjectProxy& GetOptions();
+
+		/** whether we will invoke callback immediately using NPL.call instead of NPL.activate. This is only enabled in sync-mode api. */
+		bool IsSyncCallbackMode() const;
+		void SetSyncCallbackMode(bool val);
+	private:
+		int InvokeCallbackScript(const char* sCode, int nLength);
 	public:
 		/** CURLOPT_URL*/
 		string m_url;
@@ -276,6 +285,8 @@ namespace ParaEngine
 		bool m_bForbidReuse;
 		/** whether to send progress update via callback */
 		bool m_bEnableProgressUpdate;
+		/** we will invoke callback immediately using NPL.call instead of NPL.activate. This is only enabled in sync-mode api. */
+		bool m_bIsSyncCallbackMode;
 		
 		int m_nBytesReceived;
 		int m_nTotalBytes;

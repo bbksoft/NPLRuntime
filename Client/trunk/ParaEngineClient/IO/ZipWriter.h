@@ -1,6 +1,7 @@
 #pragma once
 #include "IAttributeFields.h"	
 
+
 namespace ParaEngine
 {
 	void dosdatetime2filetime(WORD dosdate, WORD dostime, time_t *ft);
@@ -58,6 +59,9 @@ namespace ParaEngine
 		*/
 		DWORD ZipAdd(const char* destFilename, const char* filename);
 
+		
+		DWORD ZipAdd(const char* destFilename, CParaFile* pFile);
+
 		/**
 		* add a zip folder to the zip file. call this for each folder to be added to the zip.
 		* It does not check for duplicates
@@ -80,6 +84,9 @@ namespace ParaEngine
 		* Note: you can't add any more after calling this.
 		*/
 		DWORD close();
+
+		/** compress without zip header*/
+		static int Compress(std::string& outstring, const char* src, int nSrcSize, int compressionlevel = -1);
 
 	protected:
 		int SaveAndClose();

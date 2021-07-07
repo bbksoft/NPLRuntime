@@ -63,6 +63,15 @@ namespace ParaEngine
 		std::fill(m_lightmapArray.begin(),m_lightmapArray.end(),LightData());
 	}
 
+	void BlockChunk::ClearAllLight()
+	{
+		SetDirty(true);
+		if (m_lightBlockIndices.size() > 0)
+			m_lightBlockIndices.clear();
+		SetLightingInitialized(false);
+		std::fill(m_lightmapArray.begin(), m_lightmapArray.end(), LightData());
+	}
+
 
 	void BlockChunk::LoadBlock(uint16_t nBlockIndex, BlockTemplate* pTemplate)
 	{
@@ -344,6 +353,13 @@ namespace ParaEngine
 				return false;
 			}
 		}
+
+		auto blockTemplate = pBlock->GetTemplate();
+		if (blockTemplate->IsMatchAttribute(BlockTemplate::batt_invisible))
+		{
+			return false;
+		}
+
 		uint16_t blockIdX_cs,blockIdY_cs,blockIdZ_cs;
 		UnpackBlockIndex(index,blockIdX_cs,blockIdY_cs,blockIdZ_cs);
 		const int16_t maxIndex = BlockConfig::g_chunkBlockDim - 1;
@@ -623,9 +639,9 @@ namespace ParaEngine
 	bool BlockChunk::IsNearbyChunksLoaded()
 	{
 		CBlockWorld* pWorld =  GetBlockWorld();
-		return (pWorld->GetChunkColumnTimeStamp(m_minBlockId_ws.x - 16, m_minBlockId_ws.z) > 0 && 
+		return ((m_minBlockId_ws.x < 16 || pWorld->GetChunkColumnTimeStamp(m_minBlockId_ws.x - 16, m_minBlockId_ws.z) > 0) &&
 				pWorld->GetChunkColumnTimeStamp(m_minBlockId_ws.x + 16, m_minBlockId_ws.z) > 0 && 
-				pWorld->GetChunkColumnTimeStamp(m_minBlockId_ws.x, m_minBlockId_ws.z-16) > 0 && 
+				(m_minBlockId_ws.z < 16 || pWorld->GetChunkColumnTimeStamp(m_minBlockId_ws.x, m_minBlockId_ws.z-16) > 0) &&
 				pWorld->GetChunkColumnTimeStamp(m_minBlockId_ws.x, m_minBlockId_ws.z+16) > 0);
 	}
 
@@ -674,6 +690,45 @@ namespace ParaEngine
 		Uint16x3 blockId_rs;
 		UnpackBlockIndex(nBlockIndex, blockId_rs.x, blockId_rs.y, blockId_rs.z);
 		return m_minBlockId_rs + blockId_rs;
+	}
+
+	std::vector<Uint16x3> BlockChunk::refreshBlockVisible(uint16_t blockTemplateId)
+	{
+		int nIndexSize = (int)m_blockIndices.size();
+		if (nIndexSize > 0)
+		{
+			for (int blockIndex = 1; blockIndex < nIndexSize; ++blockIndex)
+			{
+				if (m_blockIndices[blockIndex] >= 0)
+				{
+					Block& block = m_blocks[m_blockIndices[blockIndex]];
+					BlockTemplate* blockTemplate = block.GetTemplate();
+					if (blockTemplate && blockTemplate->GetID() == blockTemplateId)
+					{
+						Uint16x3 blockId_rs = GetBlockPosRs(blockIndex);
+						m_ownerBlockRegion->RefreshBlockTemplateByIndex(blockId_rs.x, blockId_rs.y, blockId_rs.z, blockTemplate);
+						m_ownerBlockRegion->CheckNeighborChunkDirty(blockId_rs);
+						SetDirty(true);
+					}
+				}
+			}
+		}
+
+		std::vector<Uint16x3> rets;
+		// for (auto iter = m_lightBlockIndices.begin(); iter != m_lightBlockIndices.end(); ++iter)
+		// {
+			// uint16_t nIndex = *iter;
+			// int32_t blockIndex = m_blockIndices[nIndex];
+			// Block& block = m_blocks[blockIndex];
+
+			// if (block.GetTemplate()->GetID() == blockTemplateId)
+			// {
+				// Uint16x3 blockId_rs = GetBlockPosRs(nIndex);
+				// rets.push_back(blockId_rs);	
+			// }
+		// }
+
+		return rets;
 	}
 
 	void BlockChunk::SetDirty(bool val)

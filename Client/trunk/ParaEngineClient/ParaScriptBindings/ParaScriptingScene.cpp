@@ -114,7 +114,7 @@ namespace ParaScripting
 			else if(sFilterFunc[0]>='0' && sFilterFunc[0]<='9')
 			{
 				// filter by type. 
-				DWORD filter = atoi(sFilterFunc);
+				DWORD filter = (DWORD)atoll(sFilterFunc);
 				// if(filter!=0)
 				{
 					SetPickingFilter(filter);
@@ -124,7 +124,7 @@ namespace ParaScripting
 			else if(sFilterFunc[0] == 'p' && sFilterFunc[1] == ':' && sFilterFunc[2]>='0' && sFilterFunc[2]<='9')
 			{
 				// filter by physics group.  e.g. "p:4294967295" matches all physics group
-				DWORD filter = atoi(sFilterFunc+2);
+				DWORD filter = (DWORD)atoll(sFilterFunc+2);
 				{
 					SetPickingPhysicsFilter(filter);
 					pFilterFunc = g_fncPickingByPhysicsGroup;
@@ -1797,7 +1797,8 @@ void ParaScene::FireMissile2(ParaAssetObject& asset, float fSpeed, double fromX,
 
 ParaObject ParaScene::CreateManagedLoader(const char * sLoaderName)
 {
-	ParaObject obj((CBaseObject*)CGlobals::GetScene()->CreateManagedLoader(string(sLoaderName)));
+	string sTmp(sLoaderName);
+	ParaObject obj((CBaseObject*)CGlobals::GetScene()->CreateManagedLoader(sTmp));
 	return obj;
 }
 
@@ -2968,7 +2969,7 @@ void ParaMiniSceneGraph::Draw( float fDeltaTime )
 {
 	if(IsValid())
 	{
-		if( SUCCEEDED( CGlobals::GetRenderDevice()->BeginScene() ) )
+		if(CGlobals::GetRenderDevice() && SUCCEEDED( CGlobals::GetRenderDevice()->BeginScene() ) )
 		{
 			m_pSceneGraph->Draw(fDeltaTime);
 

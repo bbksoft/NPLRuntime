@@ -16,6 +16,8 @@ cmake_minimum_required (VERSION 2.6)
 
 project (NPLRuntime)
 
+option(NPLRUNTIME_LUASQL "whether to build luasql" OFF)
+
 # this is the directory to keep all binary
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
 	set(OUTPUT_BIN_DIR   ${NPLRuntime_SOURCE_DIR}/../ParaWorld/bin64/)
@@ -45,7 +47,7 @@ set(Boost_USE_STATIC_LIBS   ON)
 set(Boost_USE_STATIC_RUNTIME ON)
 
 # Add more boost components here
-find_package( Boost 1.61 REQUIRED COMPONENTS thread date_time filesystem system chrono signals serialization iostreams regex) 
+find_package( Boost 1.55 REQUIRED COMPONENTS thread date_time filesystem system chrono signals serialization iostreams regex) 
 
 if (WIN32)
 	option(BUILD_CURL_EXE OFF)
@@ -59,8 +61,11 @@ else()
 	SET(CMAKE_INSTALL_RPATH "$ORIGIN/")
 endif()
 
+
 add_subdirectory (${SERVER_SOURCE_DIR}lua-5.1.4 ${NPLRuntime_BINARY_DIR}/lua-5.1.4)
 add_subdirectory (${SERVER_SOURCE_DIR}LuaJIT ${NPLRuntime_BINARY_DIR}/LuaJIT)
+add_subdirectory (${SERVER_SOURCE_DIR}LuaJIT-2.1 ${NPLRuntime_BINARY_DIR}/LuaJIT-2.1)
+
 if (APPLE)  # only use the latest luabind on macosx/macos-sierra
     add_subdirectory (${SERVER_SOURCE_DIR}luabind-0.9.2beta ${NPLRuntime_BINARY_DIR}/luabind-0.9.2beta)
 else()
@@ -70,7 +75,10 @@ add_subdirectory (${SERVER_SOURCE_DIR}sqlite-3.6.23.1 ${NPLRuntime_BINARY_DIR}/s
 add_subdirectory (${SERVER_SOURCE_DIR}jsoncpp-0.5.0 ${NPLRuntime_BINARY_DIR}/jsoncpp-0.5.0)
 add_subdirectory (${SERVER_SOURCE_DIR}tinyxpath_1_3_1  ${NPLRuntime_BINARY_DIR}/tinyxpath_1_3_1)
 #add_subdirectory (${SERVER_SOURCE_DIR}luaprofiler-2.0.2  ${NPLRuntime_BINARY_DIR}/luaprofiler-2.0.2)
-add_subdirectory (${SERVER_SOURCE_DIR}luasql ${NPLRuntime_BINARY_DIR}/luasql)
+
+if(NPLRUNTIME_LUASQL)
+	add_subdirectory (${SERVER_SOURCE_DIR}luasql ${NPLRuntime_BINARY_DIR}/luasql)
+endif()
 
 # main NPL runtime using ParaEngineServer
 add_subdirectory (ParaEngineServer ${NPLRuntime_BINARY_DIR}/ParaEngineServer)

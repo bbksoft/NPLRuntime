@@ -6,7 +6,8 @@
 namespace ParaEngine
 {
 	struct CParaFileInfo;
-
+	class CArchive;
+	
 	using namespace std;
 	
 	/** where to search the file and where the file is found */
@@ -16,6 +17,7 @@ namespace ParaEngine
 		FILE_ON_DISK = 1,
 		FILE_ON_ZIP_ARCHIVE = 2,
 		FILE_ON_SEARCH_PATH = 4,
+		FILE_ON_EXECUTABLE = 8, // embedded resource file
 	};
 
 	/**
@@ -110,6 +112,17 @@ namespace ParaEngine
 		*/
 		static int32 DoesFileExist2(const char* filename, uint32 dwWhereToSearch = FILE_ON_DISK, std::string* pDiskFilePath = NULL);
 
+		/**
+		*  Checks whether the path is an absolute path.
+		*
+		*  @note On Android, if the parameter passed in is relative to "assets/", this method will treat it as an absolute path.
+		*        Also on Blackberry, path starts with "app/native/Resources/" is treated as an absolute path.
+		*
+		*  @param strPath The path that needs to be checked.
+		*  @return true if it's an absolute path, otherwise it will return false.
+		*/
+		static bool IsAbsolutePath(const std::string& path);
+
 		/** delete temporary file. temporary files are file in the ./temp/ directory of the ParaEngine's root dir.
 		* this function is general used to delete temporary texture file generated during the game.
 		* @param sFilePattern: such as "*.dds", "temp.txt", etc
@@ -195,8 +208,8 @@ namespace ParaEngine
 
 		/** Get the absolute file path by appending the root path before the relative path.
 		* please note that all paths should uses slash "/", instead of backslash "\", in the path name. letter case is ignored
-		* @param sRelativePath: the absolute path from which to obtain the relative path. It should not begin with "/"
-		* @param sRootPath: the parent root path, which will be removed from the absolute path. It should end with "/"
+		* @param sRelativePath: the relative path. it also begin with "../../", "./", etc. 
+		* @param sRootPath: the parent root path, it may end with "/". 
 		* @return: the relative path is returned. If the absolute path does not math the root path, the absolute path
 		*		is returned unchanged.
 		* e.g. "c:/lxzsrc/a/b.x" = GetAbsolutePath("a/b.x", "c:/lxzsrc/");
@@ -218,8 +231,12 @@ namespace ParaEngine
 		*  Gets the writable path.
 		*  @return  The path that can be write/read a file in
 		*/
-		PE_CORE_DECL static std::string GetWritablePath();
+		PE_CORE_DECL static const std::string& GetWritablePath();
+
+		/** Note: NOT thread safe, only set at startup when there is just one thread running. */
 		PE_CORE_DECL static void SetWritablePath(const std::string& writable_path);
+		/** whether the given file is a writable path. For absolute file path, we only allow files in initial working directory and writable path. */
+		PE_CORE_DECL static bool IsWritablePath(const std::string& filepath, bool bLogWarning = true);
 
 		enum PARAENGINE_DIRECTORY{
 			APP_ROOT_DIR = 0,
@@ -243,7 +260,8 @@ namespace ParaEngine
 			APP_SH_PICTURE_DIR = 18,
 			APP_SH_VIDEO_DIR = 19,
 			APP_DEV_DIR = 20,
-			APP_LAST_DIR
+			APP_EXECUTABLE_DIR = 21,
+			APP_LAST_DIR,
 		};
 
 		/** get the current directory of the application. it allows querying a number of standard directories.
@@ -290,6 +308,9 @@ namespace ParaEngine
 		* @return : true if succeeded.
 		*/
 		PE_CORE_DECL bool OpenFile(const char* filename, bool bReadyOnly = true, const char* relativePath = NULL, bool bUseCompressed = false, uint32 dwWhereToOpen = FILE_ON_DISK | FILE_ON_ZIP_ARCHIVE | FILE_ON_SEARCH_PATH);
+
+		/** mostly used for reading from an archive file handle */
+		PE_CORE_DECL bool OpenFile(CArchive* pArchive, const char* filename, bool bUseCompressed = false);
 
 		/** get file attributes like file type, where the file is found, absolute path, modification time, size, etc.
 		@param ParaFileInfo: file info.
@@ -376,7 +397,8 @@ namespace ParaEngine
 		/** the string length can not exceed 1024*/
 		PE_CORE_DECL int WriteFormated(const char *, ...);
 
-		inline int WriteDWORD(DWORD data){ return write(&data, 4); }
+		inline int WriteDWORD(DWORD data){ return write(&data, sizeof(data)); }
+		inline int WriteWORD(WORD data) { return write(&data, sizeof(data)); } 
 
 
 		/**

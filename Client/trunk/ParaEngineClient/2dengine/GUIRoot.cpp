@@ -80,6 +80,7 @@ The GUIRoot object contains the top level mouse focus object.
 #include "EventsCenter.h"
 #include "TouchSessions.h"
 #include "TouchGesturePinch.h"
+#include "StringHelper.h"
 #include "GUIRoot.h"
 #include "memdebug.h"
 
@@ -227,7 +228,6 @@ void CGUIRoot::Clear()
 {
 	TouchSessions::GetInstance().ClearTouchSessions();
 	
-	m_namemap.clear();
 	DestroyChildren();
 	SAFE_RELEASE(m_tooltip);
 	ClearAllTopLevelControls();
@@ -253,7 +253,7 @@ void CGUIRoot::Clear()
 
 void CGUIRoot::ActivateRoot()
 {
-#ifdef USE_DIRECTX_RENDERER
+#if defined(USE_DIRECTX_RENDERER)|| 0
 	if (!m_bActive && m_pMouse && m_pKeyboard) 
 	{
 		if (m_pMouse->m_pMouse)
@@ -281,7 +281,7 @@ void CGUIRoot::ActivateRoot()
 
 void CGUIRoot::InactivateRoot()
 {
-#ifdef USE_DIRECTX_RENDERER
+#if defined(USE_DIRECTX_RENDERER) || 0
 	if (m_bActive && m_pMouse && m_pKeyboard) 
 	{
 		m_pMouse->m_dwElements=0;
@@ -355,8 +355,10 @@ void CGUIRoot::DeleteGUIObject(CGUIBase * pObj)
 		return;
 	CGUIRoot *root = CGUIRoot::GetInstance();
 	
-	root->m_tooltip->RemoveTip(pObj);
-	root->m_pMouse->ReleaseCapture(pObj);
+	if(root->m_tooltip)
+		root->m_tooltip->RemoveTip(pObj);
+	if(root->m_pMouse)
+		root->m_pMouse->ReleaseCapture(pObj);
 	pObj->InvalidateDeviceObjects();
 	pObj->DeleteDeviceObjects();
 
@@ -461,7 +463,7 @@ int CGUIRoot::Release()
 //no need refactoring
 CGUIBase* CGUIRoot::GetUIObject(const char * strObjectName)
 {
-	if (strObjectName == 0)
+	if (strObjectName == 0 || strObjectName[0] == 0)
 		return NULL;
 	if (strcmp(strObjectName, "root") == 0)
 		return this;
@@ -916,10 +918,13 @@ void CGUIRoot::Reset()
 
 void CGUIRoot::GetMousePosition(int* nX, int* nY) const
 {
-	if (nX != 0)
-		*nX = m_pMouse->m_x;
-	if (nY != 0)
-		*nY = m_pMouse->m_y;
+	if (m_pMouse)
+	{
+		if (nX != 0)
+			*nX = m_pMouse->m_x;
+		if (nY != 0)
+			*nY = m_pMouse->m_y;
+	}
 }
 
 bool ParaEngine::CGUIRoot::IsActive()
@@ -950,23 +955,23 @@ void ParaEngine::CGUIRoot::SetIsNonClient(bool val)
 void ParaEngine::CGUIRoot::SetMousePosition(int nX, int nY)
 {
 	m_pMouse->SetMousePosition(nX, nY);
-
-#ifdef USE_DIRECTX_RENDERER
-	if (m_pMouse->IsLocked())
-	{
-		// Set position of camera to center of desktop, 
-		// so it always has room to move.  This is very useful
-		// if the cursor is hidden.  If this isn't done and cursor is hidden, 
-		// then invisible cursor will hit the edge of the screen 
-		// and the user can't tell what happened
-		POINT ptCenter;
-		RECT rcDesktop;
-		GetWindowRect(GetDesktopWindow(), &rcDesktop);
-		ptCenter.x = (rcDesktop.right - rcDesktop.left) / 2;
-		ptCenter.y = (rcDesktop.bottom - rcDesktop.top) / 2;
-		SetCursorPos(ptCenter.x, ptCenter.y);
-	}
-#endif
+//
+//#if defined(USE_DIRECTX_RENDERER) || 0
+//	if (m_pMouse->IsLocked())
+//	{
+//		// Set position of camera to center of desktop, 
+//		// so it always has room to move.  This is very useful
+//		// if the cursor is hidden.  If this isn't done and cursor is hidden, 
+//		// then invisible cursor will hit the edge of the screen 
+//		// and the user can't tell what happened
+//		POINT ptCenter;
+//		RECT rcDesktop;
+//		GetWindowRect(GetDesktopWindow(), &rcDesktop);
+//		ptCenter.x = (rcDesktop.right - rcDesktop.left) / 2;
+//		ptCenter.y = (rcDesktop.bottom - rcDesktop.top) / 2;
+//		SetCursorPos(ptCenter.x, ptCenter.y);
+//	}
+//#endif
 }
 
 int ParaEngine::CGUIRoot::GetFingerSizePixels() const
@@ -1061,6 +1066,49 @@ void ParaEngine::CGUIRoot::DispatchTouchMouseEvent(bool &bMouseHandled)
 	m_events.clear();
 }
 
+
+void ParaEngine::CGUIRoot::DestroyChildren()
+{
+	CGUIContainer::DestroyChildren();
+	m_namemap.clear();
+}
+
+void ParaEngine::CGUIRoot::SendKeyDownEvent(int nVirtualkey)
+{
+}
+
+void ParaEngine::CGUIRoot::SendKeyUpEvent(int nVirtualkey)
+{
+}
+
+void ParaEngine::CGUIRoot::SendInputMethodEvent(const char* pStr)
+{
+	CGUIBase* pKeyTarget = GetUIKeyFocus();
+	if (pKeyTarget && pStr)
+	{
+		string fromStr(pStr);
+		u16string sTextWide;
+		StringHelper::UTF8ToUTF16(fromStr, sTextWide);
+		wstring sTextWide2;
+		sTextWide2.resize(sTextWide.size());
+		for (int i = 0; i < (int)sTextWide.size(); ++i)
+		{
+			sTextWide2[i] = sTextWide[i];
+		}
+		
+		pKeyTarget->OnHandleWinMsgChars(sTextWide2);
+	}
+}
+
+bool ParaEngine::CGUIRoot::IsMouseButtonSwapped()
+{
+	return GetMouse()->IsMouseButtonSwapped();
+}
+
+void ParaEngine::CGUIRoot::SetMouseButtonSwapped(bool bSwapped)
+{
+	GetMouse()->SetMouseButtonSwapped(bSwapped);
+}
 
 bool ParaEngine::CGUIRoot::DispatchKeyboardMsg(bool bKeyHandled)
 {
@@ -1713,6 +1761,13 @@ void CGUIRoot::UseDefaultMouseCursor(bool bUseDefaultMouseCursor)
 			{
 				m_pMouse->SetCursorFromFile(sCursorFile.c_str(), nHotSpotX, nHotSpotY);
 			}
+			else
+			{
+				// prevent waiting cursor to show up
+				m_pMouse->SetCursorFromFile(":IDR_DEFAULT_CURSOR", -1, -1);
+				/*HCURSOR hc = LoadCursor(NULL, IDC_ARROW);
+				::SetCursor(hc);*/
+			}
 		}
 	}
 #endif
@@ -1798,7 +1853,7 @@ bool CGUIRoot::OnClick(int MouseState, int X, int Y)
 LRESULT CGUIRoot::MsgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, bool &bNoFurtherProcess)
 {
 	LRESULT result = 0;
-#ifdef USE_DIRECTX_RENDERER
+#if defined(USE_DIRECTX_RENDERER) || 0
 	MSG newMsg;
 	if (uMsg<=WM_MOUSELAST&&uMsg>=WM_MOUSEFIRST) 
 	{
@@ -1950,7 +2005,7 @@ HRESULT CGUIRoot::OneTimeGUIInit()
 		m_pKeyboard = new CDirectKeyboard(CGlobals::GetAppHWND());
 	if (m_pMouse == 0)
 		m_pMouse = new CDirectMouse(CGlobals::GetAppHWND());
-#ifdef USE_DIRECTX_RENDERER
+#if defined(USE_DIRECTX_RENDERER)
 	CGUIIME::OnFocusOut();
 #endif
 
@@ -2619,13 +2674,13 @@ CPaintEngine * ParaEngine::CGUIRoot::paintEngine() const
 	if (engine)
 		return engine;
 
-	CPaintEngine *engine = CPaintEngineGPU::GetInstance();
-	if (engine->isActive() && engine->paintDevice() != this) {
+	CPaintEngine *engine_ = CPaintEngineGPU::GetInstance();
+	if (engine_ && engine_->isActive() && engine_->paintDevice() != this) {
 		OUTPUT_LOG("warning: multiple active GPU paint engine. normally there should only be one active one\n");
-		engine = new CPaintEngineGPU();
-		return engine;
+		engine_ = new CPaintEngineGPU();
+		return engine_;
 	}
-	return engine;
+	return engine_;
 }
 
 int ParaEngine::CGUIRoot::metric(PaintDeviceMetric metric) const
@@ -2690,6 +2745,12 @@ int ParaEngine::CGUIRoot::InstallFields(CAttributeClass* pClass, bool bOverride)
 	pClass->AddField("EnableIME", FieldType_Bool, (void*)SetEnableIME_s, (void*)GetEnableIME_s, NULL, NULL, bOverride);
 	pClass->AddField("UseSystemCursor", FieldType_Bool, (void*)SetUseSystemCursor_s, (void*)GetUseSystemCursor_s, NULL, NULL, bOverride);
 	pClass->AddField("CaptureMouse", FieldType_Bool, (void*)SetCaptureMouse_s, (void*)IsMouseCaptured_s, NULL, NULL, bOverride);
+
+	pClass->AddField("SendKeyDownEvent", FieldType_Int, (void*)SendKeyDownEvent_s, (void*)0, NULL, NULL, bOverride);
+	pClass->AddField("SendKeyUpEvent", FieldType_Int, (void*)SendKeyUpEvent_s, (void*)0, NULL, NULL, bOverride);
+	pClass->AddField("SendInputMethodEvent", FieldType_String, (void*)SendInputMethodEvent_s, (void*)0, NULL, NULL, bOverride);
+	pClass->AddField("MouseButtonSwapped", FieldType_Bool, (void*)SetMouseButtonSwapped_s, (void*)IsMouseButtonSwapped_s, NULL, NULL, bOverride);
+
 	pClass->AddField("IsNonClient", FieldType_Bool, (void*)SetIsNonClient_s, (void*)IsNonClient_s, NULL, NULL, bOverride);
 	pClass->AddField("FingerSizePixels", FieldType_Int, (void*)SetFingerSizePixels_s, (void*)GetFingerSizePixels_s, NULL, NULL, bOverride);
 	pClass->AddField("FingerStepSizePixels", FieldType_Int, (void*)SetFingerStepSizePixels_s, (void*)GetFingerStepSizePixels_s, NULL, NULL, bOverride);

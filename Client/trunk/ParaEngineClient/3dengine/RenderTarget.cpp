@@ -533,6 +533,7 @@ bool ParaEngine::CRenderTarget::Begin()
 	// no need to bind depth buffer, since it is automatically bind by opengl when frame buffer is bind. 
 	
 	pd3dDevice->BeginRenderTarget(m_nTextureWidth, m_nTextureHeight);
+#endif
 	//calculate viewport
 	{
 		ParaViewport myViewport;
@@ -542,7 +543,6 @@ bool ParaEngine::CRenderTarget::Begin()
 		myViewport.Height = GetTextureHeight();
 		pd3dDevice->SetViewport((D3DVIEWPORT9*)&myViewport);
 	}
-#endif
 	m_bIsBegin = true;
 	return true;
 }
@@ -611,21 +611,28 @@ CPaintEngine * ParaEngine::CRenderTarget::paintEngine() const
 	if (engine)
 		return engine;
 
-	CPaintEngine *engine = CPaintEngineGPU::GetInstance();
-	if (engine->isActive() && engine->paintDevice() != this) {
-		engine = new CPaintEngineGPU();
-		return engine;
+	CPaintEngine *engine_ = CPaintEngineGPU::GetInstance();
+	if (engine_->isActive() && engine_->paintDevice() != this) {
+		engine_ = new CPaintEngineGPU();
+		return engine_;
 	}
-	return engine;
+	return engine_;
 }
 
-void ParaEngine::CRenderTarget::DoPaint()
+void ParaEngine::CRenderTarget::DoPaint(CPainter* painter)
 {
 	ScriptCallback* pCallback = GetScriptCallback(Type_Paint);
 	if (pCallback)
 	{
-		CPainter painter(this);
-		pCallback->ActivateLocalNow(pCallback->GetCode());
+		if (painter)
+		{
+			pCallback->ActivateLocalNow(pCallback->GetCode());
+		}
+		else
+		{
+			CPainter painter(this);
+			pCallback->ActivateLocalNow(pCallback->GetCode());
+		}
 	}
 }
 
